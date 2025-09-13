@@ -286,16 +286,19 @@ async function runParisOfficeMigration(supabase) {
         {
           location_id: parisLocationId,
           pin_hash: '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4', // hash of "1234"
+          user_name: 'Marie Dubois',
           active: true
         },
         {
           location_id: parisLocationId,
           pin_hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', // hash of "paris"
+          user_name: 'Pierre Martin',
           active: true
         },
         {
           location_id: parisLocationId,
           pin_hash: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08', // hash of "team"
+          user_name: 'Alice Johnson',
           active: true
         }
       ]);
@@ -318,50 +321,51 @@ async function runParisOfficeMigration(supabase) {
 
     if (droneLabelError || !droneLabel || droneLabel.length === 0) {
       console.log('⚠️  Error fetching DRONE label:', droneLabelError?.message);
-    } else {
-      const droneLabelId = droneLabel[0].id;
-      
-      // Add test subscribers
-      const { error: optinsError } = await supabase
-        .from('optins')
-        .upsert([
-          {
-            location_id: parisLocationId,
-            label_id: droneLabelId,
-            phone_e164: '+33123456789',
-            status: 'active'
-          },
-          {
-            location_id: parisLocationId,
-            label_id: droneLabelId,
-            phone_e164: '+33987654321',
-            status: 'active'
-          },
-          {
-            location_id: parisLocationId,
-            label_id: droneLabelId,
-            phone_e164: '+33555555555',
-            status: 'active'
-          },
-          {
-            location_id: parisLocationId,
-            label_id: droneLabelId,
-            phone_e164: '+33111223344',
-            status: 'alerted'
-          },
-          {
-            location_id: parisLocationId,
-            label_id: droneLabelId,
-            phone_e164: '+33998877665',
-            status: 'unsub'
-          }
-        ], { onConflict: 'location_id,label_id,phone_e164' });
+      return; // Exit early if we can't get the label
+    }
+    
+    const droneLabelId = droneLabel[0].id;
+    
+    // Add test subscribers
+    const { error: optinsError } = await supabase
+      .from('optins')
+      .upsert([
+        {
+          location_id: parisLocationId,
+          label_id: droneLabelId,
+          phone_e164: '+33123456789',
+          status: 'active'
+        },
+        {
+          location_id: parisLocationId,
+          label_id: droneLabelId,
+          phone_e164: '+33987654321',
+          status: 'active'
+        },
+        {
+          location_id: parisLocationId,
+          label_id: droneLabelId,
+          phone_e164: '+33555555555',
+          status: 'active'
+        },
+        {
+          location_id: parisLocationId,
+          label_id: droneLabelId,
+          phone_e164: '+33111223344',
+          status: 'alerted'
+        },
+        {
+          location_id: parisLocationId,
+          label_id: droneLabelId,
+          phone_e164: '+33998877665',
+          status: 'unsub'
+        }
+      ], { onConflict: 'location_id,label_id,phone_e164' });
 
-      if (optinsError) {
-        console.log('⚠️  Error adding optins:', optinsError.message);
-      } else {
-        console.log('✅ Test subscribers added for Paris Office');
-      }
+    if (optinsError) {
+      console.log('⚠️  Error adding optins:', optinsError.message);
+    } else {
+      console.log('✅ Test subscribers added for Paris Office');
     }
 
     console.log('📝 Step 6: Adding test send records...');
@@ -378,41 +382,45 @@ async function runParisOfficeMigration(supabase) {
 
     if (usersError2 || !users || users.length === 0) {
       console.log('⚠️  Error fetching users for send records:', usersError2?.message);
-    } else {
-      const marieUser = users.find(u => u.email === 'marie.dubois@restockping.com');
-      const aliceUser = users.find(u => u.email === 'alice.johnson@restockping.com');
-      const bobUser = users.find(u => u.email === 'bob.smith@restockping.com');
+      return; // Exit early if we can't get users
+    }
+    
+    const marieUser = users.find(u => u.email === 'marie.dubois@restockping.com');
+    const aliceUser = users.find(u => u.email === 'alice.johnson@restockping.com');
+    const bobUser = users.find(u => u.email === 'bob.smith@restockping.com');
 
-      if (marieUser && aliceUser && bobUser && droneLabel) {
-        const { error: sendsError } = await supabase
-          .from('sends')
-          .upsert([
-            {
-              location_id: parisLocationId,
-              label_id: droneLabel[0].id,
-              count_sent: 3,
-              sender_user_id: marieUser.id
-            },
-            {
-              location_id: parisLocationId,
-              label_id: droneLabel[0].id,
-              count_sent: 4,
-              sender_user_id: aliceUser.id
-            },
-            {
-              location_id: parisLocationId,
-              label_id: droneLabel[0].id,
-              count_sent: 2,
-              sender_user_id: bobUser.id
-            }
-          ]);
+    if (!marieUser || !aliceUser || !bobUser) {
+      console.log('⚠️  Could not find all required users for send records');
+      return;
+    }
 
-        if (sendsError) {
-          console.log('⚠️  Error adding send records:', sendsError.message);
-        } else {
-          console.log('✅ Test send records added for Paris Office');
+    const { error: sendsError } = await supabase
+      .from('sends')
+      .upsert([
+        {
+          location_id: parisLocationId,
+          label_id: droneLabelId,
+          count_sent: 3,
+          sender_user_id: marieUser.id
+        },
+        {
+          location_id: parisLocationId,
+          label_id: droneLabelId,
+          count_sent: 4,
+          sender_user_id: aliceUser.id
+        },
+        {
+          location_id: parisLocationId,
+          label_id: droneLabelId,
+          count_sent: 2,
+          sender_user_id: bobUser.id
         }
-      }
+      ]);
+
+    if (sendsError) {
+      console.log('⚠️  Error adding send records:', sendsError.message);
+    } else {
+      console.log('✅ Test send records added for Paris Office');
     }
 
     console.log('📝 Step 7: Setting up Row Level Security (RLS)...');
