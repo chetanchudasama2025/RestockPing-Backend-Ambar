@@ -1,7 +1,21 @@
 -- ENUM TYPES
-CREATE TYPE IF NOT EXISTS user_role AS ENUM ('owner', 'team');
-CREATE TYPE IF NOT EXISTS request_status AS ENUM ('open', 'mapped', 'closed');
-CREATE TYPE IF NOT EXISTS optin_status AS ENUM ('active', 'alerted', 'unsub');
+DO $$ BEGIN
+    CREATE TYPE user_role AS ENUM ('owner', 'team');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE request_status AS ENUM ('open', 'mapped', 'closed');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE optin_status AS ENUM ('active', 'alerted', 'unsub');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 -- LOCATIONS TABLE
 CREATE TABLE IF NOT EXISTS locations (

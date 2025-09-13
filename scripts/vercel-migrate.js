@@ -252,13 +252,19 @@ async function runParisOfficeMigration(supabase) {
           synonyms: 'Computer Monitor,4K Monitor,Gaming Monitor,Ultrawide',
           active: true
         }
-      ], { onConflict: 'location_id,code' });
+      ]);
 
     if (labelsError) {
       console.log('⚠️  Error adding labels:', labelsError.message);
+      console.log('📝 Labels error details:', JSON.stringify(labelsError, null, 2));
+      return; // Exit early if labels creation failed
     } else {
       console.log('✅ Product labels created for Paris Office');
     }
+
+    // Small delay to ensure labels are committed to database
+    console.log('⏳ Waiting for labels to be committed...');
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
     console.log('📝 Step 4: Creating team pins with PIN "1234" for login...');
     
@@ -312,19 +318,40 @@ async function runParisOfficeMigration(supabase) {
     console.log('📝 Step 5: Adding test subscribers (optins)...');
     
     // Get DRONE label ID
+    console.log('🔍 Looking for DRONE label in Paris Office...');
     const { data: droneLabel, error: droneLabelError } = await supabase
       .from('labels')
-      .select('id')
+      .select('id, code, name')
       .eq('code', 'DRONE')
       .eq('location_id', parisLocationId)
       .limit(1);
 
-    if (droneLabelError || !droneLabel || droneLabel.length === 0) {
-      console.log('⚠️  Error fetching DRONE label:', droneLabelError?.message);
+    if (droneLabelError) {
+      console.log('⚠️  Error fetching DRONE label:', droneLabelError.message);
+      console.log('📝 DRONE label error details:', JSON.stringify(droneLabelError, null, 2));
       return; // Exit early if we can't get the label
     }
     
+    if (!droneLabel || droneLabel.length === 0) {
+      console.log('⚠️  DRONE label not found for Paris Office');
+      console.log('📝 Let me check what labels exist...');
+      
+      // Debug: Check what labels exist
+      const { data: allLabels, error: allLabelsError } = await supabase
+        .from('labels')
+        .select('id, code, name, location_id')
+        .eq('location_id', parisLocationId);
+      
+      if (allLabelsError) {
+        console.log('⚠️  Error fetching all labels:', allLabelsError.message);
+      } else {
+        console.log('📝 Existing labels in Paris Office:', allLabels);
+      }
+      return;
+    }
+    
     const droneLabelId = droneLabel[0].id;
+    console.log('✅ Found DRONE label:', droneLabel[0]);
     
     // Add test subscribers
     const { error: optinsError } = await supabase
@@ -360,7 +387,7 @@ async function runParisOfficeMigration(supabase) {
           phone_e164: '+33998877665',
           status: 'unsub'
         }
-      ], { onConflict: 'location_id,label_id,phone_e164' });
+      ]);
 
     if (optinsError) {
       console.log('⚠️  Error adding optins:', optinsError.message);
