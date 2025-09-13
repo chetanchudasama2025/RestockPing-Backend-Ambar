@@ -59,3 +59,28 @@ SELECT l.id, lb.id, '+44770001000', 'alerted'
 FROM locations l 
 JOIN labels lb ON l.id = lb.location_id 
 WHERE l.slug='london_office' AND lb.code='SMARTPHONE';
+
+-- Paris Office optins
+INSERT INTO optins (location_id, label_id, phone_e164, status) 
+SELECT l.id, lb.id, '+33123456789', 'active' 
+FROM locations l 
+JOIN labels lb ON l.id = lb.location_id 
+WHERE l.slug='paris_office' AND lb.code='DRONE';
+
+INSERT INTO optins (location_id, label_id, phone_e164, status) 
+SELECT l.id, lb.id, '+33987654321', 'active' 
+FROM locations l 
+JOIN labels lb ON l.id = lb.location_id 
+WHERE l.slug='paris_office' AND lb.code='DRONE';
+
+INSERT INTO optins (location_id, label_id, phone_e164, status) 
+SELECT l.id, lb.id, '+33555555555', 'active' 
+FROM locations l 
+JOIN labels lb ON l.id = lb.location_id 
+WHERE l.slug='paris_office' AND lb.code='PHONE';
+
+INSERT INTO optins (location_id, label_id, phone_e164, status) 
+SELECT l.id, lb.id, '+33111223344', 'alerted' 
+FROM locations l 
+JOIN labels lb ON l.id = lb.location_id 
+WHERE l.slug='paris_office' AND lb.code='LAPTOP';

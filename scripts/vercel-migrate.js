@@ -51,31 +51,12 @@ async function vercelMigrate() {
       console.log('⚠️  Function creation failed, continuing with alternative approach...');
     }
 
-    // Read and execute the main setup SQL
-    const setupSQLPath = path.join(__dirname, '../supabase/db/001_initial_setup.sql');
-    if (fs.existsSync(setupSQLPath)) {
-      const setupSQL = fs.readFileSync(setupSQLPath, 'utf8');
-      
-      console.log('🔨 Executing database schema...');
-      const { error } = await supabase.rpc('exec_sql', { sql: setupSQL });
-      
-      if (error) {
-        console.log('⚠️  Schema execution failed:', error.message);
-        console.log('📝 This might be expected if tables already exist');
-      } else {
-        console.log('✅ Database schema updated successfully!');
-      }
-    }
-
-    // Run Paris Office migration (always run this)
-    console.log('🏢 Running Paris Office migration...');
-    await runParisOfficeMigration(supabase);
+    // Run all migration files in order
+    console.log('🔨 Running Supabase migrations...');
+    await runMigrations(supabase);
 
     // Run seeders if this is a fresh deployment
     if (isVercel && isProduction) {
-      console.log('🧹 Cleaning existing database data...');
-      await cleanDatabase(supabase);
-      
       console.log('🌱 Running database seeders...');
       await runSeeders(supabase);
     }
@@ -89,456 +70,41 @@ async function vercelMigrate() {
   }
 }
 
-async function cleanDatabase(supabase) {
-  try {
-    console.log('🗑️  Cleaning existing data...');
-    
-    // Define tables to clean in reverse dependency order
-    // Based on the actual schema from 001_initial_setup.sql
-    const tablesToClean = [
-      'sends',        // References: location_id, label_id, sender_user_id
-      'optins',       // References: location_id, label_id, request_id
-      'requests',     // References: location_id, matched_label_id
-      'team_pins',    // References: location_id
-      'labels',       // References: location_id
-      'users',        // No dependencies
-      'locations'     // No dependencies (base table)
-    ];
+async function runMigrations(supabase) {
+  const migrationsDir = path.join(__dirname, '../supabase/migrations');
+  
+  if (!fs.existsSync(migrationsDir)) {
+    console.log('📁 No migrations directory found');
+    return;
+  }
 
-    for (const table of tablesToClean) {
-      try {
-        console.log(`🧹 Cleaning table: ${table}`);
-        
-        // Use a more reliable delete approach
-        const { error } = await supabase
-          .from(table)
-          .delete()
-          .gte('id', '00000000-0000-0000-0000-000000000000'); // Delete all records
-        
-        if (error) {
-          console.log(`⚠️  Could not clean table ${table}:`, error.message);
-          // Try alternative approach with exec_sql
-          try {
-            const { error: sqlError } = await supabase.rpc('exec_sql', { 
-              sql: `DELETE FROM ${table};` 
-            });
-            if (sqlError) {
-              console.log(`⚠️  SQL cleanup also failed for ${table}:`, sqlError.message);
-            } else {
-              console.log(`✅ Cleaned table ${table} via SQL`);
-            }
-          } catch (sqlCleanError) {
-            console.log(`⚠️  SQL cleanup error for ${table}:`, sqlCleanError.message);
-          }
-        } else {
-          console.log(`✅ Cleaned table: ${table}`);
-        }
-      } catch (cleanError) {
-        console.log(`⚠️  Error cleaning table ${table}:`, cleanError.message);
+  const migrationFiles = fs.readdirSync(migrationsDir)
+    .filter(file => file.endsWith('.sql'))
+    .sort();
+
+  console.log(`📝 Found ${migrationFiles.length} migration files`);
+
+  for (const file of migrationFiles) {
+    try {
+      const filePath = path.join(migrationsDir, file);
+      const sql = fs.readFileSync(filePath, 'utf8');
+      
+      console.log(`🔨 Running migration: ${file}`);
+      const { error } = await supabase.rpc('exec_sql', { sql });
+      
+      if (error && !error.message.includes('already exists') && !error.message.includes('duplicate key')) {
+        console.log(`⚠️  Migration ${file} failed:`, error.message);
+        // Continue with other migrations even if one fails
+      } else {
+        console.log(`✅ Migration ${file} completed`);
       }
+    } catch (migrationError) {
+      console.log(`⚠️  Could not run migration ${file}:`, migrationError.message);
     }
-
-    console.log('✅ Database cleanup completed');
-  } catch (error) {
-    console.log('⚠️  Database cleanup failed:', error.message);
   }
 }
 
-async function runParisOfficeMigration(supabase) {
-  try {
-    console.log('📝 Step 1: Creating Paris Office location...');
-    
-    // Create Paris Office location
-    const { error: locationError } = await supabase
-      .from('locations')
-      .upsert([
-        {
-          name: 'Paris Office',
-          slug: 'paris_office',
-          timezone: 'Europe/Paris'
-        }
-      ], { onConflict: 'slug' });
-
-    if (locationError) {
-      console.log('⚠️  Error creating Paris Office location:', locationError.message);
-    } else {
-      console.log('✅ Paris Office location created');
-    }
-
-    console.log('📝 Step 2: Adding Paris Office team users...');
-    
-    // Add Paris Office team users
-    const { error: usersError } = await supabase
-      .from('users')
-      .upsert([
-        {
-          name: 'Marie Dubois',
-          email: 'marie.dubois@restockping.com',
-          role: 'owner'
-        },
-        {
-          name: 'Pierre Martin',
-          email: 'pierre.martin@restockping.com',
-          role: 'team'
-        },
-        {
-          name: 'Alice Johnson',
-          email: 'alice.johnson@restockping.com',
-          role: 'owner'
-        },
-        {
-          name: 'Bob Smith',
-          email: 'bob.smith@restockping.com',
-          role: 'team'
-        },
-        {
-          name: 'Carol Davis',
-          email: 'carol.davis@restockping.com',
-          role: 'team'
-        }
-      ], { onConflict: 'email' });
-
-    if (usersError) {
-      console.log('⚠️  Error adding users:', usersError.message);
-    } else {
-      console.log('✅ Paris Office users added successfully');
-    }
-
-    console.log('📝 Step 3: Creating product labels for Paris Office...');
-    
-    // Get Paris Office location ID
-    const { data: parisLocation, error: locationError2 } = await supabase
-      .from('locations')
-      .select('id')
-      .eq('slug', 'paris_office')
-      .limit(1);
-
-    if (locationError2 || !parisLocation || parisLocation.length === 0) {
-      console.log('⚠️  Error fetching Paris Office location:', locationError2?.message);
-      return;
-    }
-
-    const parisLocationId = parisLocation[0].id;
-
-    // Add product labels for Paris Office (one by one to handle conflicts)
-    const labelsToCreate = [
-      {
-        location_id: parisLocationId,
-        code: 'DRONE',
-        name: 'Drones',
-        synonyms: 'Quadcopter,FPV Drone,Camera Drone,Professional Drone',
-        active: true
-      },
-      {
-        location_id: parisLocationId,
-        code: 'PHONE',
-        name: 'Smartphones',
-        synonyms: 'Mobile Phones,Cell Phones,iPhone,Android',
-        active: true
-      },
-      {
-        location_id: parisLocationId,
-        code: 'LAPTOP',
-        name: 'Laptops',
-        synonyms: 'Notebooks,MacBook,Windows Laptop,Chromebook',
-        active: true
-      },
-      {
-        location_id: parisLocationId,
-        code: 'MONITOR',
-        name: 'Monitors',
-        synonyms: 'Computer Monitor,4K Monitor,Gaming Monitor,Ultrawide',
-        active: true
-      }
-    ];
-
-    let labelsError = null;
-    for (const label of labelsToCreate) {
-      console.log(`🏷️  Creating label: ${label.code}`);
-      const { error } = await supabase
-        .from('labels')
-        .upsert([label]);
-      
-      if (error) {
-        if (error.code === '23505') {
-          console.log(`⚠️  Label ${label.code} already exists, skipping...`);
-        } else {
-          console.log(`❌ Error creating label ${label.code}:`, error.message);
-          labelsError = error;
-          break;
-        }
-      } else {
-        console.log(`✅ Label ${label.code} created successfully`);
-      }
-    }
-
-    if (labelsError) {
-      console.log('⚠️  Error adding labels:', labelsError.message);
-      console.log('📝 Labels error details:', JSON.stringify(labelsError, null, 2));
-      return; // Exit early if labels creation failed
-    } else {
-      console.log('✅ Product labels processed for Paris Office');
-    }
-
-    // Small delay to ensure labels are committed to database
-    console.log('⏳ Waiting for labels to be committed...');
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    console.log('📝 Step 4: Creating team pins with PIN "1234" for login...');
-    
-    // Create hash function for PINs
-    const hashPinSQL = `
-      CREATE OR REPLACE FUNCTION hash_pin(pin text)
-      RETURNS text AS $$
-      BEGIN
-          RETURN encode(digest(pin, 'sha256'), 'hex');
-      END;
-      $$ LANGUAGE plpgsql;
-    `;
-
-    try {
-      await supabase.rpc('exec_sql', { sql: hashPinSQL });
-      console.log('✅ PIN hash function created');
-    } catch (hashError) {
-      console.log('⚠️  Could not create hash function:', hashError.message);
-    }
-
-    // Add team pins with PIN "1234" for Paris Office
-    const { error: teamPinsError } = await supabase
-      .from('team_pins')
-      .upsert([
-        {
-          location_id: parisLocationId,
-          pin_hash: '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4', // hash of "1234"
-          user_name: 'Marie Dubois',
-          active: true
-        },
-        {
-          location_id: parisLocationId,
-          pin_hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', // hash of "paris"
-          user_name: 'Pierre Martin',
-          active: true
-        },
-        {
-          location_id: parisLocationId,
-          pin_hash: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08', // hash of "team"
-          user_name: 'Alice Johnson',
-          active: true
-        }
-      ]);
-
-    if (teamPinsError) {
-      console.log('⚠️  Error adding team pins:', teamPinsError.message);
-    } else {
-      console.log('✅ Team pins created with PIN "1234" for Paris Office');
-    }
-
-    console.log('📝 Step 5: Adding test subscribers (optins)...');
-    
-    // Get DRONE label ID
-    console.log('🔍 Looking for DRONE label in Paris Office...');
-    const { data: droneLabel, error: droneLabelError } = await supabase
-      .from('labels')
-      .select('id, code, name')
-      .eq('code', 'DRONE')
-      .eq('location_id', parisLocationId)
-      .limit(1);
-
-    if (droneLabelError) {
-      console.log('⚠️  Error fetching DRONE label:', droneLabelError.message);
-      console.log('📝 DRONE label error details:', JSON.stringify(droneLabelError, null, 2));
-      return; // Exit early if we can't get the label
-    }
-    
-    if (!droneLabel || droneLabel.length === 0) {
-      console.log('⚠️  DRONE label not found for Paris Office');
-      console.log('📝 Let me check what labels exist...');
-      
-      // Debug: Check what labels exist
-      const { data: allLabels, error: allLabelsError } = await supabase
-        .from('labels')
-        .select('id, code, name, location_id')
-        .eq('location_id', parisLocationId);
-      
-      if (allLabelsError) {
-        console.log('⚠️  Error fetching all labels:', allLabelsError.message);
-      } else {
-        console.log('📝 Existing labels in Paris Office:', allLabels);
-      }
-      return;
-    }
-    
-    const droneLabelId = droneLabel[0].id;
-    console.log('✅ Found DRONE label:', droneLabel[0]);
-    
-    // Add test subscribers
-    const { error: optinsError } = await supabase
-      .from('optins')
-      .upsert([
-        {
-          location_id: parisLocationId,
-          label_id: droneLabelId,
-          phone_e164: '+33123456789',
-          status: 'active'
-        },
-        {
-          location_id: parisLocationId,
-          label_id: droneLabelId,
-          phone_e164: '+33987654321',
-          status: 'active'
-        },
-        {
-          location_id: parisLocationId,
-          label_id: droneLabelId,
-          phone_e164: '+33555555555',
-          status: 'active'
-        },
-        {
-          location_id: parisLocationId,
-          label_id: droneLabelId,
-          phone_e164: '+33111223344',
-          status: 'alerted'
-        },
-        {
-          location_id: parisLocationId,
-          label_id: droneLabelId,
-          phone_e164: '+33998877665',
-          status: 'unsub'
-        }
-      ]);
-
-    if (optinsError) {
-      console.log('⚠️  Error adding optins:', optinsError.message);
-    } else {
-      console.log('✅ Test subscribers added for Paris Office');
-    }
-
-    console.log('📝 Step 6: Adding test send records...');
-    
-    // Get user IDs for send records
-    const { data: users, error: usersError2 } = await supabase
-      .from('users')
-      .select('id, email')
-      .in('email', [
-        'marie.dubois@restockping.com',
-        'alice.johnson@restockping.com',
-        'bob.smith@restockping.com'
-      ]);
-
-    if (usersError2 || !users || users.length === 0) {
-      console.log('⚠️  Error fetching users for send records:', usersError2?.message);
-      return; // Exit early if we can't get users
-    }
-    
-    const marieUser = users.find(u => u.email === 'marie.dubois@restockping.com');
-    const aliceUser = users.find(u => u.email === 'alice.johnson@restockping.com');
-    const bobUser = users.find(u => u.email === 'bob.smith@restockping.com');
-
-    if (!marieUser || !aliceUser || !bobUser) {
-      console.log('⚠️  Could not find all required users for send records');
-      return;
-    }
-
-    const { error: sendsError } = await supabase
-      .from('sends')
-      .upsert([
-        {
-          location_id: parisLocationId,
-          label_id: droneLabelId,
-          count_sent: 3,
-          sender_user_id: marieUser.id
-        },
-        {
-          location_id: parisLocationId,
-          label_id: droneLabelId,
-          count_sent: 4,
-          sender_user_id: aliceUser.id
-        },
-        {
-          location_id: parisLocationId,
-          label_id: droneLabelId,
-          count_sent: 2,
-          sender_user_id: bobUser.id
-        }
-      ]);
-
-    if (sendsError) {
-      console.log('⚠️  Error adding send records:', sendsError.message);
-    } else {
-      console.log('✅ Test send records added for Paris Office');
-    }
-
-    console.log('📝 Step 7: Setting up Row Level Security (RLS)...');
-    
-    // Enable RLS on all tables
-    const enableRLSSQL = `
-      -- Enable RLS on all tables
-      ALTER TABLE locations ENABLE ROW LEVEL SECURITY;
-      ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-      ALTER TABLE labels ENABLE ROW LEVEL SECURITY;
-      ALTER TABLE requests ENABLE ROW LEVEL SECURITY;
-      ALTER TABLE team_pins ENABLE ROW LEVEL SECURITY;
-      ALTER TABLE optins ENABLE ROW LEVEL SECURITY;
-      ALTER TABLE sends ENABLE ROW LEVEL SECURITY;
-
-      -- Create policies for service_role (full access)
-      CREATE POLICY "service_role_full_access" ON locations FOR ALL TO service_role USING (true);
-      CREATE POLICY "service_role_full_access" ON users FOR ALL TO service_role USING (true);
-      CREATE POLICY "service_role_full_access" ON labels FOR ALL TO service_role USING (true);
-      CREATE POLICY "service_role_full_access" ON requests FOR ALL TO service_role USING (true);
-      CREATE POLICY "service_role_full_access" ON team_pins FOR ALL TO service_role USING (true);
-      CREATE POLICY "service_role_full_access" ON optins FOR ALL TO service_role USING (true);
-      CREATE POLICY "service_role_full_access" ON sends FOR ALL TO service_role USING (true);
-
-      -- Create policies for authenticated users (read/write access)
-      CREATE POLICY "authenticated_read_write" ON locations FOR ALL TO authenticated USING (true);
-      CREATE POLICY "authenticated_read_write" ON users FOR ALL TO authenticated USING (true);
-      CREATE POLICY "authenticated_read_write" ON labels FOR ALL TO authenticated USING (true);
-      CREATE POLICY "authenticated_read_write" ON requests FOR ALL TO authenticated USING (true);
-      CREATE POLICY "authenticated_read_write" ON team_pins FOR ALL TO authenticated USING (true);
-      CREATE POLICY "authenticated_read_write" ON optins FOR ALL TO authenticated USING (true);
-      CREATE POLICY "authenticated_read_write" ON sends FOR ALL TO authenticated USING (true);
-
-      -- Create policies for anon users (read-only access for public API)
-      CREATE POLICY "anon_read_only" ON locations FOR SELECT TO anon USING (true);
-      CREATE POLICY "anon_read_only" ON users FOR SELECT TO anon USING (true);
-      CREATE POLICY "anon_read_only" ON labels FOR SELECT TO anon USING (true);
-      CREATE POLICY "anon_read_only" ON requests FOR SELECT TO anon USING (true);
-      CREATE POLICY "anon_read_only" ON team_pins FOR SELECT TO anon USING (true);
-      CREATE POLICY "anon_read_only" ON optins FOR SELECT TO anon USING (true);
-      CREATE POLICY "anon_read_only" ON sends FOR SELECT TO anon USING (true);
-    `;
-
-    try {
-      await supabase.rpc('exec_sql', { sql: enableRLSSQL });
-      console.log('✅ Row Level Security enabled with proper policies');
-    } catch (rlsError) {
-      console.log('⚠️  Could not enable RLS:', rlsError.message);
-    }
-
-    console.log('📝 Step 8: Verifying Paris Office migration...');
-    
-    // Verify the migration
-    const { data: teamPins, error: verifyError } = await supabase
-      .from('team_pins')
-      .select('id, location_id, active')
-      .eq('location_id', parisLocationId)
-      .eq('active', true);
-
-    if (verifyError) {
-      console.log('⚠️  Error verifying team_pins:', verifyError.message);
-    } else {
-      console.log(`✅ Paris Office migration verification: ${teamPins.length} active team pins created`);
-      console.log('🔑 Login with Location: paris_office and PIN: 1234');
-    }
-
-    console.log('🎉 Paris Office migration completed successfully!');
-
-  } catch (error) {
-    console.log('⚠️  Paris Office migration failed:', error.message);
-    // Don't throw error to avoid breaking the build
-  }
-}
+// Removed complex migration logic - now using proper Supabase migration files
 
 async function runSeeders(supabase) {
   const seedersDir = path.join(__dirname, '../supabase/db/seeders');

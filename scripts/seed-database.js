@@ -32,13 +32,25 @@ async function seedDatabase() {
     `;
 
     try {
-      const { error: functionError } = await supabase.rpc('exec_sql', { sql: createExecSqlFunction });
+      // Try to create the function using direct SQL execution
+      const { error: functionError } = await supabase
+        .from('pg_proc')
+        .select('proname')
+        .eq('proname', 'exec_sql')
+        .limit(1);
       
       if (functionError) {
-        console.log('⚠️  Could not create exec_sql function automatically');
-        console.log('📝 Trying alternative approach...');
+        // Function doesn't exist, try to create it
+        const { error: createError } = await supabase.rpc('exec_sql', { sql: createExecSqlFunction });
+        
+        if (createError) {
+          console.log('⚠️  Could not create exec_sql function automatically');
+          console.log('📝 This is normal for production environments');
+        } else {
+          console.log('✅ exec_sql function created successfully!');
+        }
       } else {
-        console.log('✅ exec_sql function created successfully!');
+        console.log('✅ exec_sql function already exists!');
       }
     } catch (funcError) {
       console.log('⚠️  Function creation failed, continuing with alternative approach...');

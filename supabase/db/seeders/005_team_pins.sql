@@ -32,15 +32,11 @@ INSERT INTO team_pins (location_id, pin_hash, active)
 SELECT id, 'backup_pin_london_2024', FALSE 
 FROM locations WHERE slug='london_office';
 
--- Paris Office team pins with proper PIN "1234" for login
+-- Paris Office team pins with proper crypto hashes
 INSERT INTO team_pins (location_id, pin_hash, active) 
-SELECT id, '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4', TRUE 
+SELECT id, encode(digest('1234', 'sha256'), 'hex'), TRUE
 FROM locations WHERE slug='paris_office';
 
 INSERT INTO team_pins (location_id, pin_hash, active) 
-SELECT id, 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', TRUE 
-FROM locations WHERE slug='paris_office';
-
-INSERT INTO team_pins (location_id, pin_hash, active) 
-SELECT id, '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08', TRUE 
+SELECT id, encode(digest('paris', 'sha256'), 'hex'), TRUE
 FROM locations WHERE slug='paris_office';

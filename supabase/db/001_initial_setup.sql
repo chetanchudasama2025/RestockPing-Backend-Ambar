@@ -1,21 +1,7 @@
 -- ENUM TYPES
-DO $$ BEGIN
-    CREATE TYPE user_role AS ENUM ('owner', 'team');
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
-
-DO $$ BEGIN
-    CREATE TYPE request_status AS ENUM ('open', 'mapped', 'closed');
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
-
-DO $$ BEGIN
-    CREATE TYPE optin_status AS ENUM ('active', 'alerted', 'unsub');
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
+CREATE TYPE user_role AS ENUM ('owner', 'team');
+CREATE TYPE request_status AS ENUM ('open', 'mapped', 'closed');
+CREATE TYPE optin_status AS ENUM ('active', 'alerted', 'unsub');
 
 -- LOCATIONS TABLE
 CREATE TABLE IF NOT EXISTS locations (
@@ -37,11 +23,10 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS labels (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     location_id uuid REFERENCES locations(id),
-    code text,
+    code text UNIQUE,
     name text,
     synonyms text,
-    active boolean,
-    UNIQUE(location_id, code)
+    active boolean
 );
 
 -- REQUESTS TABLE
@@ -60,7 +45,6 @@ CREATE TABLE IF NOT EXISTS team_pins (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     location_id uuid REFERENCES locations(id),
     pin_hash text,
-    user_name text,
     active boolean,
     created_at timestamptz DEFAULT now()
 );

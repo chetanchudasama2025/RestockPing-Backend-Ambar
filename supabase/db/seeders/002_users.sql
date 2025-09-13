@@ -7,4 +7,6 @@ INSERT INTO users (email, name, role) VALUES
     ('emma.designer@company.com', 'Emma Brown', 'team'),
     ('frank.analyst@company.com', 'Frank Miller', 'team'),
     ('grace.lead@company.com', 'Grace Taylor', 'owner'),
-    ('henry.developer@company.com', 'Henry Anderson', 'team');
+    ('henry.developer@company.com', 'Henry Anderson', 'team'),
+    ('marie.dubois@restockping.com', 'Marie Dubois', 'team'),
+    ('pierre.martin@restockping.com', 'Pierre Martin', 'team');

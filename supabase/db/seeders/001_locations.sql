@@ -5,4 +5,5 @@ INSERT INTO locations (name, slug, timezone) VALUES
     ('San Francisco Office', 'sf_office', 'America/Los_Angeles'),
     ('Tokyo Office', 'tokyo_office', 'Asia/Tokyo'),
     ('Berlin Office', 'berlin_office', 'Europe/Berlin'),
-    ('Sydney Office', 'sydney_office', 'Australia/Sydney');
+    ('Sydney Office', 'sydney_office', 'Australia/Sydney'),
+    ('Paris Office', 'paris_office', 'Europe/Paris');

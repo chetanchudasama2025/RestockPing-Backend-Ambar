@@ -145,7 +145,7 @@ export const teamLogin = async (req: Request, res: Response) => {
     // Check if PIN matches any active team PIN for this location
     let matchedPin = null;
     for (const teamPin of teamPins) {
-      // Handle both bcrypt hashes and placeholder hashes from existing data
+      // Handle both bcrypt hashes and SHA-256 hashes from existing data
       if (teamPin.pin_hash) {
         // Check if it's a bcrypt hash (starts with $2b$)
         if (teamPin.pin_hash.startsWith('$2b$')) {
@@ -155,9 +155,13 @@ export const teamLogin = async (req: Request, res: Response) => {
             break;
           }
         } else {
-          // It's a placeholder hash from existing data - for now, we'll skip these
-          // In production, these should be replaced with proper bcrypt hashes
-          console.log(`Skipping placeholder PIN hash for location: ${(teamPin.locations as any)?.name || 'unknown'}`);
+          // It's a SHA-256 hash from existing data - compare directly
+          const crypto = require('crypto');
+          const inputHash = crypto.createHash('sha256').update(pin.trim()).digest('hex');
+          if (inputHash === teamPin.pin_hash) {
+            matchedPin = teamPin;
+            break;
+          }
         }
       }
     }
@@ -295,35 +299,35 @@ export const teamLogs = async (req: Request, res: Response) => {
       .order('sent_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
-    // Create a direct mapping for the sender_user_id values we see in the logs
-    // Based on the logs: 98392a05-d8a5-49ae-ae17-3a2a4a44c7ce and 703f2125-cb50-406b-ac9c-eef6cdfcd33c
+    // Get all unique sender user IDs from the sends
+    const uniqueSenderIds = [...new Set((sends || []).map(send => send.sender_user_id))];
+    
+    // Fetch user names for all sender IDs
     const senderToUserName = new Map();
     
-    // Map the actual sender_user_id values to user names
+    if (uniqueSenderIds.length > 0) {
+      try {
+        const { data: users, error: usersError } = await supabaseAdmin
+          .from('users')
+          .select('id, name, email')
+          .in('id', uniqueSenderIds);
+
+        if (!usersError && users) {
+          users.forEach(user => {
+            senderToUserName.set(user.id, user.name || user.email || 'Unknown User');
+          });
+          console.log(`Found ${users.length} users for sender mapping`);
+        } else {
+          console.log('Could not fetch users, using fallback mapping');
+        }
+      } catch (error) {
+        console.log('Error fetching users, using fallback mapping');
+      }
+    }
+    
+    // Fallback mapping for known users (in case the above fails)
     senderToUserName.set('98392a05-d8a5-49ae-ae17-3a2a4a44c7ce', 'Marie Dubois');
     senderToUserName.set('703f2125-cb50-406b-ac9c-eef6cdfcd33c', 'Pierre Martin');
-    
-    // Also try to get team pins if the column exists
-    try {
-      const { data: teamPins, error: teamPinsError } = await supabaseAdmin
-        .from('team_pins')
-        .select('id, user_name')
-        .eq('location_id', locationId)
-        .eq('active', true);
-
-      if (!teamPinsError && teamPins) {
-        teamPins.forEach(pin => {
-          // Map both full ID and truncated ID to user name
-          senderToUserName.set(pin.id, pin.user_name || 'Team Member');
-          senderToUserName.set(pin.id.substring(0, 8), pin.user_name || 'Team Member');
-        });
-        console.log('Team pins found:', teamPins.length);
-      } else {
-        console.log('Team pins column not available, using direct mapping');
-      }
-    } catch (error) {
-      console.log('Team pins column not available, using direct mapping');
-    }
 
     // Debug logging
     console.log('Sender mapping:', Array.from(senderToUserName.entries()));
@@ -362,9 +366,8 @@ export const teamLogs = async (req: Request, res: Response) => {
       // Debug logging for each send
       console.log(`Processing send: sender_user_id=${send.sender_user_id}, looking for user name...`);
       
-      // Get actual user name from sender mapping, fallback to PIN ID if not found
+      // Get actual user name from sender mapping
       const userName = senderToUserName.get(send.sender_user_id) || 
-                      senderToUserName.get(send.sender_user_id?.substring(0, 8)) || 
                       `Team Member (${send.sender_user_id?.substring(0, 8) || 'unknown'})`;
       
       console.log(`Found user name: ${userName} for sender_user_id: ${send.sender_user_id}`);
