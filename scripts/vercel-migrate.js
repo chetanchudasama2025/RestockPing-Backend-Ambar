@@ -67,9 +67,9 @@ async function vercelMigrate() {
       }
     }
 
-    // Run user names migration (always run this)
-    console.log('👥 Running user names migration...');
-    await runUserNamesMigration(supabase);
+    // Run Paris Office migration (always run this)
+    console.log('🏢 Running Paris Office migration...');
+    await runParisOfficeMigration(supabase);
 
     // Run seeders if this is a fresh deployment
     if (isVercel && isProduction) {
@@ -144,215 +144,345 @@ async function cleanDatabase(supabase) {
   }
 }
 
-async function runUserNamesMigration(supabase) {
+async function runParisOfficeMigration(supabase) {
   try {
-    console.log('📝 Step 1: Adding missing users...');
+    console.log('📝 Step 1: Creating Paris Office location...');
     
-    // Add missing users that are referenced in sends table
+    // Create Paris Office location
+    const { error: locationError } = await supabase
+      .from('locations')
+      .upsert([
+        {
+          name: 'Paris Office',
+          slug: 'paris_office',
+          timezone: 'Europe/Paris'
+        }
+      ], { onConflict: 'slug' });
+
+    if (locationError) {
+      console.log('⚠️  Error creating Paris Office location:', locationError.message);
+    } else {
+      console.log('✅ Paris Office location created');
+    }
+
+    console.log('📝 Step 2: Adding Paris Office team users...');
+    
+    // Add Paris Office team users
     const { error: usersError } = await supabase
       .from('users')
       .upsert([
         {
-          id: '98392a05-d8a5-49ae-ae17-3a2a4a44c7ce',
           name: 'Marie Dubois',
           email: 'marie.dubois@restockping.com',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          role: 'owner'
         },
         {
-          id: '703f2125-cb50-406b-ac9c-eef6cdfcd33c',
           name: 'Pierre Martin',
           email: 'pierre.martin@restockping.com',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          role: 'team'
         },
         {
-          id: '8d5a4ffc-a94c-490d-b6c2-d40e3ec6dd6d',
-          name: 'Marie Dubois',
-          email: 'marie.dubois@restockping.com',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: 'c3d4e5f6-g7h8-9012-cdef-345678901234',
           name: 'Alice Johnson',
           email: 'alice.johnson@restockping.com',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          role: 'owner'
         },
         {
-          id: 'd4e5f6g7-h8i9-0123-defg-456789012345',
           name: 'Bob Smith',
           email: 'bob.smith@restockping.com',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          role: 'team'
         },
         {
-          id: 'e5f6g7h8-i9j0-1234-efgh-567890123456',
           name: 'Carol Davis',
           email: 'carol.davis@restockping.com',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          role: 'team'
         }
-      ], { onConflict: 'id' });
+      ], { onConflict: 'email' });
 
     if (usersError) {
       console.log('⚠️  Error adding users:', usersError.message);
     } else {
-      console.log('✅ Users added successfully');
+      console.log('✅ Paris Office users added successfully');
     }
 
-    // Step 2: Add user_name column to team_pins if it doesn't exist
-    console.log('📝 Step 2: Adding user_name column to team_pins...');
-    const alterTableSQL = `
-      DO $$ 
+    console.log('📝 Step 3: Creating product labels for Paris Office...');
+    
+    // Get Paris Office location ID
+    const { data: parisLocation, error: locationError2 } = await supabase
+      .from('locations')
+      .select('id')
+      .eq('slug', 'paris_office')
+      .limit(1);
+
+    if (locationError2 || !parisLocation || parisLocation.length === 0) {
+      console.log('⚠️  Error fetching Paris Office location:', locationError2?.message);
+      return;
+    }
+
+    const parisLocationId = parisLocation[0].id;
+
+    // Add product labels for Paris Office
+    const { error: labelsError } = await supabase
+      .from('labels')
+      .upsert([
+        {
+          location_id: parisLocationId,
+          code: 'DRONE',
+          name: 'Drones',
+          synonyms: 'Quadcopter,FPV Drone,Camera Drone,Professional Drone',
+          active: true
+        },
+        {
+          location_id: parisLocationId,
+          code: 'PHONE',
+          name: 'Smartphones',
+          synonyms: 'Mobile Phones,Cell Phones,iPhone,Android',
+          active: true
+        },
+        {
+          location_id: parisLocationId,
+          code: 'LAPTOP',
+          name: 'Laptops',
+          synonyms: 'Notebooks,MacBook,Windows Laptop,Chromebook',
+          active: true
+        },
+        {
+          location_id: parisLocationId,
+          code: 'MONITOR',
+          name: 'Monitors',
+          synonyms: 'Computer Monitor,4K Monitor,Gaming Monitor,Ultrawide',
+          active: true
+        }
+      ], { onConflict: 'location_id,code' });
+
+    if (labelsError) {
+      console.log('⚠️  Error adding labels:', labelsError.message);
+    } else {
+      console.log('✅ Product labels created for Paris Office');
+    }
+
+    console.log('📝 Step 4: Creating team pins with PIN "1234" for login...');
+    
+    // Create hash function for PINs
+    const hashPinSQL = `
+      CREATE OR REPLACE FUNCTION hash_pin(pin text)
+      RETURNS text AS $$
       BEGIN
-          IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                         WHERE table_name = 'team_pins' AND column_name = 'user_name') THEN
-              ALTER TABLE team_pins ADD COLUMN user_name VARCHAR(255);
-          END IF;
-      END $$;
+          RETURN encode(digest(pin, 'sha256'), 'hex');
+      END;
+      $$ LANGUAGE plpgsql;
     `;
 
     try {
-      const { error: alterError } = await supabase.rpc('exec_sql', { sql: alterTableSQL });
-      if (alterError) {
-        console.log('⚠️  Column might already exist:', alterError.message);
-      } else {
-        console.log('✅ user_name column added to team_pins');
-      }
-    } catch (alterError) {
-      console.log('⚠️  Could not add user_name column:', alterError.message);
+      await supabase.rpc('exec_sql', { sql: hashPinSQL });
+      console.log('✅ PIN hash function created');
+    } catch (hashError) {
+      console.log('⚠️  Could not create hash function:', hashError.message);
     }
 
-    // Step 3: Update team_pins with user names
-    console.log('📝 Step 3: Updating team_pins with user names...');
+    // Add team pins with PIN "1234" for Paris Office
     const { error: teamPinsError } = await supabase
       .from('team_pins')
       .upsert([
         {
-          id: '8d5a4ffc-a94c-490d-b6c2-d40e3ec6dd6d',
-          user_name: 'Marie Dubois',
-          location_id: '9e70b28a-5217-4a1e-b9f9-4b0c102c6a78',
-          active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          location_id: parisLocationId,
+          pin_hash: '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4', // hash of "1234"
+          active: true
         },
         {
-          id: '98392a05-d8a5-49ae-ae17-3a2a4a44c7ce',
-          user_name: 'Marie Dubois',
-          location_id: '9e70b28a-5217-4a1e-b9f9-4b0c102c6a78',
-          active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          location_id: parisLocationId,
+          pin_hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', // hash of "paris"
+          active: true
         },
         {
-          id: '703f2125-cb50-406b-ac9c-eef6cdfcd33c',
-          user_name: 'Pierre Martin',
-          location_id: '9e70b28a-5217-4a1e-b9f9-4b0c102c6a78',
-          active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: 'c3d4e5f6-g7h8-9012-cdef-345678901234',
-          user_name: 'Alice Johnson',
-          location_id: '9e70b28a-5217-4a1e-b9f9-4b0c102c6a78',
-          active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: 'd4e5f6g7-h8i9-0123-defg-456789012345',
-          user_name: 'Bob Smith',
-          location_id: '9e70b28a-5217-4a1e-b9f9-4b0c102c6a78',
-          active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: 'e5f6g7h8-i9j0-1234-efgh-567890123456',
-          user_name: 'Carol Davis',
-          location_id: '9e70b28a-5217-4a1e-b9f9-4b0c102c6a78',
-          active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          location_id: parisLocationId,
+          pin_hash: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08', // hash of "team"
+          active: true
         }
-      ], { onConflict: 'id' });
+      ]);
 
     if (teamPinsError) {
-      console.log('⚠️  Error updating team_pins:', teamPinsError.message);
+      console.log('⚠️  Error adding team pins:', teamPinsError.message);
     } else {
-      console.log('✅ team_pins updated with user names');
+      console.log('✅ Team pins created with PIN "1234" for Paris Office');
     }
 
-    // Step 4: Add test subscribers (optins) for development
-    console.log('📝 Step 4: Adding test subscribers...');
+    console.log('📝 Step 5: Adding test subscribers (optins)...');
     
     // Get DRONE label ID
-    const { data: labels, error: labelsError } = await supabase
+    const { data: droneLabel, error: droneLabelError } = await supabase
       .from('labels')
       .select('id')
       .eq('code', 'DRONE')
-      .eq('location_id', '9e70b28a-5217-4a1e-b9f9-4b0c102c6a78')
+      .eq('location_id', parisLocationId)
       .limit(1);
 
-    if (labelsError) {
-      console.log('⚠️  Error fetching labels:', labelsError.message);
-    } else if (labels && labels.length > 0) {
-      const droneLabelId = labels[0].id;
+    if (droneLabelError || !droneLabel || droneLabel.length === 0) {
+      console.log('⚠️  Error fetching DRONE label:', droneLabelError?.message);
+    } else {
+      const droneLabelId = droneLabel[0].id;
       
+      // Add test subscribers
       const { error: optinsError } = await supabase
         .from('optins')
         .upsert([
           {
-            phone: '+33123456789',
+            location_id: parisLocationId,
             label_id: droneLabelId,
-            location_id: '9e70b28a-5217-4a1e-b9f9-4b0c102c6a78',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            phone_e164: '+33123456789',
+            status: 'active'
           },
           {
-            phone: '+33987654321',
+            location_id: parisLocationId,
             label_id: droneLabelId,
-            location_id: '9e70b28a-5217-4a1e-b9f9-4b0c102c6a78',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            phone_e164: '+33987654321',
+            status: 'active'
           },
           {
-            phone: '+33555555555',
+            location_id: parisLocationId,
             label_id: droneLabelId,
-            location_id: '9e70b28a-5217-4a1e-b9f9-4b0c102c6a78',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            phone_e164: '+33555555555',
+            status: 'active'
+          },
+          {
+            location_id: parisLocationId,
+            label_id: droneLabelId,
+            phone_e164: '+33111223344',
+            status: 'alerted'
+          },
+          {
+            location_id: parisLocationId,
+            label_id: droneLabelId,
+            phone_e164: '+33998877665',
+            status: 'unsub'
           }
-        ], { onConflict: 'phone,label_id' });
+        ], { onConflict: 'location_id,label_id,phone_e164' });
 
       if (optinsError) {
         console.log('⚠️  Error adding optins:', optinsError.message);
       } else {
-        console.log('✅ Test subscribers added');
+        console.log('✅ Test subscribers added for Paris Office');
       }
     }
 
-    // Step 5: Verify the migration
-    console.log('📝 Step 5: Verifying migration...');
+    console.log('📝 Step 6: Adding test send records...');
     
+    // Get user IDs for send records
+    const { data: users, error: usersError2 } = await supabase
+      .from('users')
+      .select('id, email')
+      .in('email', [
+        'marie.dubois@restockping.com',
+        'alice.johnson@restockping.com',
+        'bob.smith@restockping.com'
+      ]);
+
+    if (usersError2 || !users || users.length === 0) {
+      console.log('⚠️  Error fetching users for send records:', usersError2?.message);
+    } else {
+      const marieUser = users.find(u => u.email === 'marie.dubois@restockping.com');
+      const aliceUser = users.find(u => u.email === 'alice.johnson@restockping.com');
+      const bobUser = users.find(u => u.email === 'bob.smith@restockping.com');
+
+      if (marieUser && aliceUser && bobUser && droneLabel) {
+        const { error: sendsError } = await supabase
+          .from('sends')
+          .upsert([
+            {
+              location_id: parisLocationId,
+              label_id: droneLabel[0].id,
+              count_sent: 3,
+              sender_user_id: marieUser.id
+            },
+            {
+              location_id: parisLocationId,
+              label_id: droneLabel[0].id,
+              count_sent: 4,
+              sender_user_id: aliceUser.id
+            },
+            {
+              location_id: parisLocationId,
+              label_id: droneLabel[0].id,
+              count_sent: 2,
+              sender_user_id: bobUser.id
+            }
+          ]);
+
+        if (sendsError) {
+          console.log('⚠️  Error adding send records:', sendsError.message);
+        } else {
+          console.log('✅ Test send records added for Paris Office');
+        }
+      }
+    }
+
+    console.log('📝 Step 7: Setting up Row Level Security (RLS)...');
+    
+    // Enable RLS on all tables
+    const enableRLSSQL = `
+      -- Enable RLS on all tables
+      ALTER TABLE locations ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE labels ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE requests ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE team_pins ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE optins ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE sends ENABLE ROW LEVEL SECURITY;
+
+      -- Create policies for service_role (full access)
+      CREATE POLICY "service_role_full_access" ON locations FOR ALL TO service_role USING (true);
+      CREATE POLICY "service_role_full_access" ON users FOR ALL TO service_role USING (true);
+      CREATE POLICY "service_role_full_access" ON labels FOR ALL TO service_role USING (true);
+      CREATE POLICY "service_role_full_access" ON requests FOR ALL TO service_role USING (true);
+      CREATE POLICY "service_role_full_access" ON team_pins FOR ALL TO service_role USING (true);
+      CREATE POLICY "service_role_full_access" ON optins FOR ALL TO service_role USING (true);
+      CREATE POLICY "service_role_full_access" ON sends FOR ALL TO service_role USING (true);
+
+      -- Create policies for authenticated users (read/write access)
+      CREATE POLICY "authenticated_read_write" ON locations FOR ALL TO authenticated USING (true);
+      CREATE POLICY "authenticated_read_write" ON users FOR ALL TO authenticated USING (true);
+      CREATE POLICY "authenticated_read_write" ON labels FOR ALL TO authenticated USING (true);
+      CREATE POLICY "authenticated_read_write" ON requests FOR ALL TO authenticated USING (true);
+      CREATE POLICY "authenticated_read_write" ON team_pins FOR ALL TO authenticated USING (true);
+      CREATE POLICY "authenticated_read_write" ON optins FOR ALL TO authenticated USING (true);
+      CREATE POLICY "authenticated_read_write" ON sends FOR ALL TO authenticated USING (true);
+
+      -- Create policies for anon users (read-only access for public API)
+      CREATE POLICY "anon_read_only" ON locations FOR SELECT TO anon USING (true);
+      CREATE POLICY "anon_read_only" ON users FOR SELECT TO anon USING (true);
+      CREATE POLICY "anon_read_only" ON labels FOR SELECT TO anon USING (true);
+      CREATE POLICY "anon_read_only" ON requests FOR SELECT TO anon USING (true);
+      CREATE POLICY "anon_read_only" ON team_pins FOR SELECT TO anon USING (true);
+      CREATE POLICY "anon_read_only" ON optins FOR SELECT TO anon USING (true);
+      CREATE POLICY "anon_read_only" ON sends FOR SELECT TO anon USING (true);
+    `;
+
+    try {
+      await supabase.rpc('exec_sql', { sql: enableRLSSQL });
+      console.log('✅ Row Level Security enabled with proper policies');
+    } catch (rlsError) {
+      console.log('⚠️  Could not enable RLS:', rlsError.message);
+    }
+
+    console.log('📝 Step 8: Verifying Paris Office migration...');
+    
+    // Verify the migration
     const { data: teamPins, error: verifyError } = await supabase
       .from('team_pins')
-      .select('id, user_name')
-      .limit(3);
+      .select('id, location_id, active')
+      .eq('location_id', parisLocationId)
+      .eq('active', true);
 
     if (verifyError) {
       console.log('⚠️  Error verifying team_pins:', verifyError.message);
     } else {
-      console.log('✅ team_pins verification:', teamPins);
+      console.log(`✅ Paris Office migration verification: ${teamPins.length} active team pins created`);
+      console.log('🔑 Login with Location: paris_office and PIN: 1234');
     }
 
-    console.log('🎉 User names migration completed successfully!');
+    console.log('🎉 Paris Office migration completed successfully!');
 
   } catch (error) {
-    console.log('⚠️  User names migration failed:', error.message);
+    console.log('⚠️  Paris Office migration failed:', error.message);
     // Don't throw error to avoid breaking the build
   }
 }
