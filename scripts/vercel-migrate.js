@@ -220,46 +220,64 @@ async function runParisOfficeMigration(supabase) {
 
     const parisLocationId = parisLocation[0].id;
 
-    // Add product labels for Paris Office
-    const { error: labelsError } = await supabase
-      .from('labels')
-      .upsert([
-        {
-          location_id: parisLocationId,
-          code: 'DRONE',
-          name: 'Drones',
-          synonyms: 'Quadcopter,FPV Drone,Camera Drone,Professional Drone',
-          active: true
-        },
-        {
-          location_id: parisLocationId,
-          code: 'PHONE',
-          name: 'Smartphones',
-          synonyms: 'Mobile Phones,Cell Phones,iPhone,Android',
-          active: true
-        },
-        {
-          location_id: parisLocationId,
-          code: 'LAPTOP',
-          name: 'Laptops',
-          synonyms: 'Notebooks,MacBook,Windows Laptop,Chromebook',
-          active: true
-        },
-        {
-          location_id: parisLocationId,
-          code: 'MONITOR',
-          name: 'Monitors',
-          synonyms: 'Computer Monitor,4K Monitor,Gaming Monitor,Ultrawide',
-          active: true
+    // Add product labels for Paris Office (one by one to handle conflicts)
+    const labelsToCreate = [
+      {
+        location_id: parisLocationId,
+        code: 'DRONE',
+        name: 'Drones',
+        synonyms: 'Quadcopter,FPV Drone,Camera Drone,Professional Drone',
+        active: true
+      },
+      {
+        location_id: parisLocationId,
+        code: 'PHONE',
+        name: 'Smartphones',
+        synonyms: 'Mobile Phones,Cell Phones,iPhone,Android',
+        active: true
+      },
+      {
+        location_id: parisLocationId,
+        code: 'LAPTOP',
+        name: 'Laptops',
+        synonyms: 'Notebooks,MacBook,Windows Laptop,Chromebook',
+        active: true
+      },
+      {
+        location_id: parisLocationId,
+        code: 'MONITOR',
+        name: 'Monitors',
+        synonyms: 'Computer Monitor,4K Monitor,Gaming Monitor,Ultrawide',
+        active: true
+      }
+    ];
+
+    let labelsError = null;
+    for (const label of labelsToCreate) {
+      console.log(`🏷️  Creating label: ${label.code}`);
+      const { error } = await supabase
+        .from('labels')
+        .upsert([label]);
+      
+      if (error) {
+        if (error.code === '23505') {
+          console.log(`⚠️  Label ${label.code} already exists, skipping...`);
+        } else {
+          console.log(`❌ Error creating label ${label.code}:`, error.message);
+          labelsError = error;
+          break;
         }
-      ]);
+      } else {
+        console.log(`✅ Label ${label.code} created successfully`);
+      }
+    }
 
     if (labelsError) {
       console.log('⚠️  Error adding labels:', labelsError.message);
       console.log('📝 Labels error details:', JSON.stringify(labelsError, null, 2));
       return; // Exit early if labels creation failed
     } else {
-      console.log('✅ Product labels created for Paris Office');
+      console.log('✅ Product labels processed for Paris Office');
     }
 
     // Small delay to ensure labels are committed to database
