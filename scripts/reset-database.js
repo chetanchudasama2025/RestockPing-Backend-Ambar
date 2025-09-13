@@ -20,7 +20,7 @@ async function resetDatabase() {
 
     console.log('🗑️  Resetting database (clearing all data)...');
     
-    // Define tables to clean in reverse dependency order
+    // First, check if tables exist and clean them if they do
     const tablesToClean = [
       'sends',        // References: location_id, label_id, sender_user_id
       'optins',       // References: location_id, label_id, request_id
@@ -35,6 +35,23 @@ async function resetDatabase() {
       try {
         console.log(`🧹 Cleaning table: ${table}`);
         
+        // First check if table exists by trying to select from it
+        const { data: testData, error: testError } = await supabase
+          .from(table)
+          .select('id')
+          .limit(1);
+        
+        if (testError) {
+          if (testError.message.includes('schema cache') || testError.message.includes('does not exist')) {
+            console.log(`ℹ️  Table ${table} does not exist yet, skipping...`);
+            continue;
+          } else {
+            console.log(`⚠️  Error checking table ${table}:`, testError.message);
+            continue;
+          }
+        }
+        
+        // If table exists, clean it
         const { error } = await supabase
           .from(table)
           .delete()
