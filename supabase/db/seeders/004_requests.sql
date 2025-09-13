@@ -38,3 +38,28 @@ FROM locations WHERE slug='sf_office';
 INSERT INTO requests (location_id, text, image_url, status) 
 SELECT id, 'AirPods Pro 2nd Generation with MagSafe Case', '', 'mapped' 
 FROM locations WHERE slug='tokyo_office';
+
+-- Paris Office requests for dashboard data
+INSERT INTO requests (location_id, text, image_url, status) 
+SELECT id, 'DJI Mavic 3 Pro Drone with 4K Camera', '', 'open' 
+FROM locations WHERE slug='paris_office';
+
+INSERT INTO requests (location_id, text, image_url, status) 
+SELECT id, 'iPhone 15 Pro 256GB - Natural Titanium', '', 'mapped' 
+FROM locations WHERE slug='paris_office';
+
+INSERT INTO requests (location_id, text, image_url, status) 
+SELECT id, 'MacBook Air M2 13-inch - Midnight', '', 'open' 
+FROM locations WHERE slug='paris_office';
+
+INSERT INTO requests (location_id, text, image_url, status) 
+SELECT id, 'Samsung 27-inch 4K Monitor - Space Gray', '', 'closed' 
+FROM locations WHERE slug='paris_office';
+
+INSERT INTO requests (location_id, text, image_url, status) 
+SELECT id, 'Sony A7R V Mirrorless Camera with 24-70mm Lens', '', 'open' 
+FROM locations WHERE slug='paris_office';
+
+INSERT INTO requests (location_id, text, image_url, status) 
+SELECT id, 'Apple Watch Ultra 2 GPS + Cellular 49mm - Titanium', '', 'mapped' 
+FROM locations WHERE slug='paris_office';
