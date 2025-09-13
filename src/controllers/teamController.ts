@@ -325,9 +325,28 @@ export const teamLogs = async (req: Request, res: Response) => {
       }
     }
     
-    // Fallback mapping for known users (in case the above fails)
-    senderToUserName.set('98392a05-d8a5-49ae-ae17-3a2a4a44c7ce', 'Marie Dubois');
-    senderToUserName.set('703f2125-cb50-406b-ac9c-eef6cdfcd33c', 'Pierre Martin');
+    // Additional fallback: Try to get user names from team_pins table
+    // This is a backup in case the users table doesn't have the names
+    if (uniqueSenderIds.length > 0) {
+      try {
+        // Get team pins for this location to map PIN IDs to user names
+        const { data: teamPins, error: teamPinsError } = await supabaseAdmin
+          .from('team_pins')
+          .select('id, user_name')
+          .eq('location_id', locationId);
+
+        if (!teamPinsError && teamPins) {
+          teamPins.forEach(pin => {
+            if (pin.user_name && uniqueSenderIds.includes(pin.id)) {
+              senderToUserName.set(pin.id, pin.user_name);
+            }
+          });
+          console.log(`Found ${teamPins.length} team pins for user mapping`);
+        }
+      } catch (error) {
+        console.log('Error fetching team pins for user mapping');
+      }
+    }
 
     // Debug logging
     console.log('Sender mapping:', Array.from(senderToUserName.entries()));
@@ -569,6 +588,44 @@ export const teamSend = async (req: Request, res: Response) => {
       }
     }
 
+    // Get the actual user ID for the team member
+    let senderUserId = null;
+    try {
+      const { data: teamPin, error: pinError } = await supabaseAdmin
+        .from('team_pins')
+        .select('id, user_name')
+        .eq('id', teamSession.pinId)
+        .single();
+
+      if (!pinError && teamPin) {
+        // Find the user by name in the users table
+        const { data: user, error: userError } = await supabaseAdmin
+          .from('users')
+          .select('id')
+          .eq('name', teamPin.user_name)
+          .single();
+
+        if (!userError && user) {
+          senderUserId = user.id;
+        }
+      }
+    } catch (error) {
+      console.log('Error finding user ID for team member');
+    }
+
+    // Fallback to a default user if we can't find the specific user
+    if (!senderUserId) {
+      const { data: defaultUser, error: defaultUserError } = await supabaseAdmin
+        .from('users')
+        .select('id')
+        .eq('email', 'marie.dubois@restockping.com')
+        .single();
+
+      if (!defaultUserError && defaultUser) {
+        senderUserId = defaultUser.id;
+      }
+    }
+
     // Record the send in the database
     const { error: sendRecordError } = await supabaseAdmin
       .from('sends')
@@ -576,7 +633,7 @@ export const teamSend = async (req: Request, res: Response) => {
         location_id: locationId,
         label_id: trimmedLabelId,
         count_sent: sentCount,
-        sender_user_id: teamSession.pinId // Using PIN ID as sender identifier
+        sender_user_id: senderUserId
       });
 
     if (sendRecordError) {
