@@ -1,0 +1,753 @@
+{
+  "info": {
+    "name": "RestockPing Team API",
+    "description": "Comprehensive collection for testing all Team API endpoints including locations, authentication, scanning, sending alerts, and viewing logs.",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{session_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "session_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "location_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "label_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "label_code",
+      "value": "SMARTPHONE",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Location Operations",
+      "item": [
+        {
+          "name": "Get All Locations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('Locations retrieved successfully!');",
+                  "    console.log('Total locations:', response.total);",
+                  "    if (response.locations.length > 0) {",
+                  "        pm.collectionVariables.set('location_id', response.locations[0].id);",
+                  "        console.log('Auto-set location_id:', response.locations[0].id);",
+                  "    }",
+                  "} else {",
+                  "    console.log('Failed to retrieve locations:', pm.response.json());",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/locations",
+              "host": ["{{base_url}}"],
+              "path": ["api", "locations"]
+            },
+            "description": "Get all locations with their details. No authentication required."
+          },
+          "response": [
+            {
+              "name": "Locations Retrieved Successfully",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/locations",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "locations"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"locations\": [\n    {\n      \"id\": \"uuid-location-1\",\n      \"name\": \"New York Office\",\n      \"slug\": \"ny_office\",\n      \"timezone\": \"America/New_York\"\n    }\n  ],\n  \"total\": 1\n}"
+            }
+          ]
+        }
+      ],
+      "description": "Location management operations"
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Team Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.success && response.session_token) {",
+                  "        pm.collectionVariables.set('session_token', response.session_token);",
+                  "        console.log('Session token saved:', response.session_token);",
+                  "    }",
+                  "} else {",
+                  "    console.log('Login failed:', pm.response.json());",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pin\": \"1234\",\n  \"location_id\": \"{{location_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/team/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "team", "login"]
+            },
+            "description": "Authenticate with team PIN and location ID. Returns JWT session token."
+          },
+          "response": [
+            {
+              "name": "Successful Login",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"pin\": \"1234\",\n  \"location_id\": \"valid-location-id\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/team/login",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "team", "login"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"session_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n  \"expires_in\": 1800\n}"
+            }
+          ]
+        }
+      ],
+      "description": "Authentication endpoints for team access"
+    },
+    {
+      "name": "Label Operations",
+      "item": [
+        {
+          "name": "Scan Label by Code",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.success && response.label) {",
+                  "        pm.collectionVariables.set('label_id', response.label.id);",
+                  "        pm.collectionVariables.set('label_code', response.label.code);",
+                  "        console.log('Label found:', response.label.name);",
+                  "    }",
+                  "} else {",
+                  "    console.log('Label not found:', pm.response.json());",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{session_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"{{label_code}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/team/scan",
+              "host": ["{{base_url}}"],
+              "path": ["api", "team", "scan"]
+            },
+            "description": "Lookup label by code or ID. Requires authentication."
+          },
+          "response": [
+            {
+              "name": "Label Found",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer valid-session-token"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"code\": \"SMARTPHONE\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/team/scan",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "team", "scan"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"label\": {\n    \"id\": \"uuid-label-id\",\n    \"code\": \"SMARTPHONE\",\n    \"name\": \"Smartphones\",\n    \"synonyms\": \"phone, mobile, cell\",\n    \"location_id\": \"uuid-location-id\",\n    \"location_name\": \"NY Office\",\n    \"active\": true\n  }\n}"
+            }
+          ]
+        }
+      ],
+      "description": "Label scanning and lookup operations"
+    },
+    {
+      "name": "Alert Operations",
+      "item": [
+        {
+          "name": "Send Alert to Label Subscribers",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ Alert sent successfully!');",
+                  "    console.log('📊 Sent to:', response.sent_count, 'subscribers');",
+                  "    console.log('👥 Total subscribers:', response.total_subscribers);",
+                  "    console.log('🏷️  Label:', response.label_name);",
+                  "    console.log('⏰ Last send timestamp:', response.last_send_timestamp);",
+                  "    console.log('⏳ Next allowed send:', response.next_allowed_send);",
+                  "    console.log('🎉 This alert will appear in audit logs with your user name!');",
+                  "} else if (pm.response.code === 429) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('⚠️  Rate limited:', response.message);",
+                  "    console.log('⏰ Last send timestamp:', response.last_send_timestamp);",
+                  "    console.log('⏳ Next allowed send:', response.next_allowed_send);",
+                  "} else {",
+                  "    console.log('❌ Send failed:', pm.response.json());",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{session_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"labelId\": \"{{label_id}}\",\n  \"message\": \"🚨 Alert: Product is now available! Check our store for the latest stock.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/team/send",
+              "host": ["{{base_url}}"],
+              "path": ["api", "team", "send"]
+            },
+            "description": "Send alert message to all active subscribers of a label. Enforces 3-hour rate limiting per label."
+          },
+          "response": [
+            {
+              "name": "Alert Sent Successfully",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer valid-session-token"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"labelId\": \"uuid-label-id\",\n  \"message\": \"Product is now available!\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/team/send",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "team", "send"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"sent_count\": 5,\n  \"total_subscribers\": 5,\n  \"label_name\": \"Smartphones\"\n}"
+            }
+          ]
+        }
+      ],
+      "description": "Alert sending operations to label subscribers"
+    },
+    {
+      "name": "Audit Logs",
+      "item": [
+        {
+          "name": "View Audit Logs - Default",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ Logs retrieved successfully!');",
+                  "    console.log('📊 Total logs:', response.total);",
+                  "    console.log('📋 Returned logs:', response.logs.length);",
+                  "    console.log('📄 Limit:', response.limit, 'Offset:', response.offset);",
+                  "    ",
+                  "    if (response.logs.length > 0) {",
+                  "        console.log('📝 Sample log entries:');",
+                  "        response.logs.forEach((log, index) => {",
+                  "            console.log(`   ${index + 1}. ${log.date} ${log.time} - ${log.user}`);",
+                  "            console.log(`      Action: ${log.action}`);",
+                  "            console.log(`      Details: ${log.details}`);",
+                  "            console.log(`      Label: ${log.label_name} (${log.sent_count} subscribers)`);",
+                  "        });",
+                  "        ",
+                  "        // Check if user names are showing properly",
+                  "        const hasRealNames = response.logs.some(log => ",
+                  "            !log.user.includes('Team Member (') && ",
+                  "            !log.user.includes('unknown') &&",
+                  "            log.user.length > 10",
+                  "        );",
+                  "        ",
+                  "        if (hasRealNames) {",
+                  "            console.log('🎉 SUCCESS: Audit logs showing real user names!');",
+                  "        } else {",
+                  "            console.log('⚠️  WARNING: Still showing PIN IDs instead of user names.');",
+                  "        }",
+                  "    } else {",
+                  "        console.log('📭 No logs found for this location.');",
+                  "    }",
+                  "} else {",
+                  "    console.log('❌ Failed to retrieve logs:', pm.response.json());",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{session_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/team/logs",
+              "host": ["{{base_url}}"],
+              "path": ["api", "team", "logs"]
+            },
+            "description": "View audit logs with default pagination (limit=50, offset=0)"
+          },
+          "response": [
+            {
+              "name": "Logs Retrieved Successfully",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer valid-session-token"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/team/logs",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "team", "logs"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"logs\": [\n    {\n      \"id\": \"06b2b656-f155-42e9-97f0-7a4428c047ab\",\n      \"date\": \"2025-09-12\",\n      \"time\": \"02:03\",\n      \"user\": \"Marie Dubois\",\n      \"action\": \"Sent alert\",\n      \"details\": \"Sent 4 subscribers to Mobile Phones\",\n      \"sent_count\": 4,\n      \"label_name\": \"Mobile Phones\",\n      \"full_timestamp\": \"2025-09-12T20:33:51.526+00:00\"\n    },\n    {\n      \"id\": \"18324c0d-30c4-43d9-8621-95976ec7070f\",\n      \"date\": \"2025-09-12\",\n      \"time\": \"00:33\",\n      \"user\": \"Pierre Martin\",\n      \"action\": \"Sent alert\",\n      \"details\": \"Sent 3 subscribers to Drones & UAVs\",\n      \"sent_count\": 3,\n      \"label_name\": \"Drones & UAVs\",\n      \"full_timestamp\": \"2025-09-12T19:03:51.291+00:00\"\n    }\n  ],\n  \"total\": 5,\n  \"limit\": 50,\n  \"offset\": 0\n}"
+            }
+          ]
+        },
+        {
+          "name": "View Audit Logs - Paginated",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ Paginated logs retrieved successfully!');",
+                  "    console.log('📊 Total logs:', response.total);",
+                  "    console.log('📋 Returned logs:', response.logs.length);",
+                  "    console.log('📄 Limit:', response.limit, 'Offset:', response.offset);",
+                  "} else {",
+                  "    console.log('❌ Failed to retrieve paginated logs:', pm.response.json());",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{session_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/team/logs?limit=10&offset=5",
+              "host": ["{{base_url}}"],
+              "path": ["api", "team", "logs"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "offset",
+                  "value": "5"
+                }
+              ]
+            },
+            "description": "View audit logs with custom pagination (limit=10, offset=5)"
+          }
+        },
+        {
+          "name": "Test User Names Feature",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('🧪 Testing User Names Feature...');",
+                  "    ",
+                  "    if (response.logs && response.logs.length > 0) {",
+                  "        const users = [...new Set(response.logs.map(log => log.user))];",
+                  "        console.log('👥 Unique users found:', users);",
+                  "        ",
+                  "        // Check for real names vs PIN IDs",
+                  "        const realNames = users.filter(user => ",
+                  "            !user.includes('Team Member (') && ",
+                  "            !user.includes('unknown') &&",
+                  "            user.length > 10",
+                  "        );",
+                  "        ",
+                  "        const pinIds = users.filter(user => ",
+                  "            user.includes('Team Member (') || ",
+                  "            user.includes('unknown')",
+                  "        );",
+                  "        ",
+                  "        console.log('✅ Real names:', realNames);",
+                  "        console.log('⚠️  PIN IDs:', pinIds);",
+                  "        ",
+                  "        if (realNames.length > 0) {",
+                  "            console.log('🎉 SUCCESS: User names feature is working!');",
+                  "            console.log('📝 Sample entries:');",
+                  "            response.logs.slice(0, 3).forEach((log, index) => {",
+                  "                console.log(`   ${index + 1}. ${log.date} ${log.time} - ${log.user}`);",
+                  "                console.log(`      ${log.details}`);",
+                  "            });",
+                  "        } else {",
+                  "            console.log('❌ FAILED: Still showing PIN IDs instead of user names.');",
+                  "        }",
+                  "    } else {",
+                  "        console.log('📭 No logs to test with.');",
+                  "    }",
+                  "} else {",
+                  "    console.log('❌ Request failed:', pm.response.json());",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{session_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/team/logs?limit=5",
+              "host": ["{{base_url}}"],
+              "path": ["api", "team", "logs"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "5"
+                }
+              ]
+            },
+            "description": "Test the user names feature in audit logs - should show real names like 'Marie Dubois' instead of PIN IDs"
+          }
+        }
+      ],
+      "description": "Audit log viewing operations with pagination support"
+    },
+    {
+      "name": "Complete Workflow",
+      "item": [
+        {
+          "name": "Full Team Workflow",
+          "item": [
+            {
+              "name": "0. Get Locations",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/locations",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "locations"]
+                },
+                "description": "Step 0: Get all locations to find a valid location_id"
+              }
+            },
+            {
+              "name": "1. Login",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"pin\": \"1234\",\n  \"location_id\": \"{{location_id}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/team/login",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "team", "login"]
+                },
+                "description": "Step 1: Authenticate and get session token"
+              }
+            },
+            {
+              "name": "2. Scan Label",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{session_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"code\": \"{{label_code}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/team/scan",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "team", "scan"]
+                },
+                "description": "Step 2: Scan a label to get its information"
+              }
+            },
+            {
+              "name": "3. Send Alert",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{session_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"labelId\": \"{{label_id}}\",\n  \"message\": \"🚨 Alert: Product is now available! Check our store for the latest stock.\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/team/send",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "team", "send"]
+                },
+                "description": "Step 3: Send alert to label subscribers"
+              }
+            },
+            {
+              "name": "4. View Logs",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{session_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/team/logs?limit=10",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "team", "logs"],
+                  "query": [
+                    {
+                      "key": "limit",
+                      "value": "10"
+                    }
+                  ]
+                },
+                "description": "Step 4: View audit logs to see the sent alert"
+              }
+            }
+          ],
+          "description": "Complete workflow: Get Locations → Login → Scan → Send → View Logs"
+        }
+      ],
+      "description": "Complete workflow tests demonstrating the full team API usage"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.collectionVariables.get('base_url')) {",
+          "    pm.collectionVariables.set('base_url', 'http://localhost:3000');",
+          "}",
+          "console.log('Current variables:');",
+          "console.log('Base URL:', pm.collectionVariables.get('base_url'));",
+          "console.log('Session Token:', pm.collectionVariables.get('session_token') ? 'Set' : 'Not set');",
+          "console.log('Location ID:', pm.collectionVariables.get('location_id') || 'Not set');",
+          "console.log('Label ID:', pm.collectionVariables.get('label_id') || 'Not set');"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "console.log('Request completed:', pm.request.method, pm.request.url.toString());",
+          "console.log('Response status:', pm.response.code);",
+          "console.log('Response time:', pm.response.responseTime + 'ms');",
+          "if (pm.response.code >= 400) {",
+          "    console.log('Error response:', pm.response.json());",
+          "}"
+        ]
+      }
+    }
+  ]
+}
